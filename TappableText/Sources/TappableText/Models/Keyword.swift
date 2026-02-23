@@ -1,6 +1,13 @@
 import SwiftUI
 
 public extension TappableText {
+    @resultBuilder
+    struct KeywordBuilder {
+        public static func buildBlock(_ components: Keyword...) -> [Keyword] {
+            components
+        }
+    }
+    
     /// A model representing an interactive word or phrase.
     struct Keyword {
         let word: String
