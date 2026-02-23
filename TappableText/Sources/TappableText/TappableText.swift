@@ -118,7 +118,7 @@ public struct TappableText: View {
     }
     
     /// Sets the default color for all keywords.
-    public func keywordsColor(_ color: UIColor) -> Self {
+    public func keywordColor(_ color: UIColor) -> Self {
         var copy = self
         copy.keywordsColor = color
         return copy
@@ -132,7 +132,7 @@ public struct TappableText: View {
     }
     
     /// Enables or disables underlining for keywords.
-    public func underlineKeywords(_ isOn: Bool) -> Self {
+    public func keywordUnderline(_ isOn: Bool) -> Self {
         var copy = self
         copy.underlineConfig = .init(isOn: isOn, color: keywordsColor ?? textColor ?? .label)
         return copy
