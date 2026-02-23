@@ -1,10 +1,14 @@
-import UIKit
+import SwiftUI
 
-public extension TappableText {
+extension TappableText {
     /// A configuration for keyword underlining.
     struct KeywordUnderlineConfig {
         let isOn: Bool
-        let color: UIColor
-        static var none: KeywordUnderlineConfig { .init(isOn: false, color: .clear) }
+        let color: Color?
+        let pattern: Text.LineStyle.Pattern
+        
+        static var none: KeywordUnderlineConfig {
+            .init(isOn: false, color: nil, pattern: .solid)
+        }
     }
 }

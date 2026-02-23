@@ -1,23 +1,19 @@
 import SwiftUI
 
-#if canImport(UIKit)
-import UIKit
-#endif
-
 /// A SwiftUI view that renders interactive text with customizable keyword highlighting.
 ///
 /// `TappableText` identifies specific phrases within a string and applies unique styling
 /// and tap actions to them, while keeping punctuation and formatting intact.
 @MainActor
 public struct TappableText: View {
-    
     private let text: String
-    private var textColor: UIColor?
-    private var keywordsColor: UIColor?
-    private var font: UIFont
-    private var underlineConfig: KeywordUnderlineConfig
-    private var onPlainWordsTap: (() -> Void)?
     private let keywords: [Keyword]
+    
+    private var textColor: Color = .primary
+    private var keywordColor: Color = .blue
+    private var font: Font = .body
+    private var underlineConfig: KeywordUnderlineConfig = .none
+    private var onPlainWordsTap: (() -> Void)?
     
     /// Initializes a new TappableText.
     /// - Parameters:
@@ -29,11 +25,6 @@ public struct TappableText: View {
     ) {
         self.text = text
         self.keywords = keywords()
-        self.textColor = nil
-        self.keywordsColor = nil
-        self.font = .systemFont(ofSize: 16)
-        self.underlineConfig = .none
-        self.onPlainWordsTap = nil
     }
     
     // MARK: - Internal Logic
@@ -82,12 +73,16 @@ public struct TappableText: View {
             if let matched = matchedKeyword {
                 let phrase = words[i..<(i + keywordLength)].joined()
                 combined = combined + AttributedText(phrase) { label in
-                    label.foregroundColor = matched.customColor ?? keywordsColor ?? .label
+                    label.foregroundColor = matched.customColor ?? keywordColor
                     label.font = matched.customFont ?? font
                     
-                    let isUnderlined = matched.customUnderline ?? underlineConfig.isOn
-                    label.underlineStyle = isUnderlined ? .single : .none
-                    label.underlineColor = matched.customColor ?? keywordsColor ?? underlineConfig.color
+                    let isUnderlined = matched.customUnderline?.isOn ?? underlineConfig.isOn
+                    if isUnderlined {
+                        label.underlineStyle = .init(
+                            pattern: matched.customUnderline?.pattern ?? underlineConfig.pattern,
+                            color: matched.customUnderline?.color ?? underlineConfig.color ?? keywordColor
+                        )
+                    }
                 }.onTap {
                     matched.action()
                 }
@@ -95,7 +90,7 @@ public struct TappableText: View {
             } else {
                 let word = words[i]
                 combined = combined + AttributedText(word) { label in
-                    label.foregroundColor = textColor ?? .label
+                    label.foregroundColor = textColor
                     label.font = font
                 }.onTap {
                     onPlainWordsTap?()
@@ -111,30 +106,38 @@ public struct TappableText: View {
     // MARK: - Modifiers
     
     /// Sets the color for non-keyword text.
-    public func textColor(_ color: UIColor) -> Self {
+    public func textColor(_ color: Color) -> Self {
         var copy = self
         copy.textColor = color
         return copy
     }
     
     /// Sets the default color for all keywords.
-    public func keywordColor(_ color: UIColor) -> Self {
+    public func keywordColor(_ color: Color) -> Self {
         var copy = self
-        copy.keywordsColor = color
+        copy.keywordColor = color
         return copy
     }
     
     /// Sets the font for the entire text.
-    public func textFont(_ font: UIFont) -> Self {
+    public func textFont(_ font: Font) -> Self {
         var copy = self
         copy.font = font
         return copy
     }
     
     /// Enables or disables underlining for keywords.
-    public func keywordUnderline(_ isOn: Bool) -> Self {
+    public func keywordUnderline(
+        _ isOn: Bool,
+        color: Color? = nil,
+        pattern: Text.LineStyle.Pattern = .solid
+    ) -> Self {
         var copy = self
-        copy.underlineConfig = .init(isOn: isOn, color: keywordsColor ?? textColor ?? .label)
+        copy.underlineConfig = KeywordUnderlineConfig(
+            isOn: isOn,
+            color: color ?? keywordColor,
+            pattern: pattern
+        )
         return copy
     }
     
