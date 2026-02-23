@@ -6,6 +6,9 @@ import SwiftUI
 /// and tap actions to them, while keeping punctuation and formatting intact.
 @MainActor
 public struct TappableText: View {
+    
+    @StateObject private var registry = TapHandlerRegistry()
+    
     private let text: String
     private let keywords: [Keyword]
     
@@ -14,6 +17,8 @@ public struct TappableText: View {
     private var font: Font = .body
     private var underlineConfig: KeywordUnderlineConfig = .none
     private var onPlainWordsTap: (() -> Void)?
+    
+    private let computedWords: [String]
     
     /// Initializes a new TappableText.
     /// - Parameters:
@@ -25,29 +30,22 @@ public struct TappableText: View {
     ) {
         self.text = text
         self.keywords = keywords()
+        
+        self.computedWords = TokenizeService.tokenizeSentence(text)
     }
     
     // MARK: - Internal Logic
     
-    private var textWords: [String] {
-        let pattern = #"(\s+|\w+|[^\w\s])"#
-        let regex = try? NSRegularExpression(pattern: pattern)
-        let range = NSRange(text.startIndex..., in: text)
-        let matches = regex?.matches(in: text, range: range) ?? []
-        return matches.map { String(text[Range($0.range, in: text)!]) }
-    }
-    
-    private func tokenize(_ input: String) -> [String] {
-        let pattern = #"(\s+|\w+|[^\w\s])"#
-        let regex = try? NSRegularExpression(pattern: pattern)
-        let range = NSRange(input.startIndex..., in: input)
-        let matches = regex?.matches(in: input, range: range) ?? []
-        return matches.map { String(input[Range($0.range, in: input)!]) }
-    }
-    
     public var body: some View {
-        let words = textWords
-        var combined = AttributedText("") { $0.font = font }
+        renderText()
+            .onDisappear {
+                registry.unregisterAll()
+            }
+    }
+    
+    func renderText() -> some View {
+        let words = computedWords
+        var combined = AttributedText(registry: registry) { $0.font = font }
         var i = 0
         
         while i < words.count {
@@ -72,15 +70,20 @@ public struct TappableText: View {
             
             if let matched = matchedKeyword {
                 let phrase = words[i..<(i + keywordLength)].joined()
-                combined = combined + AttributedText(phrase) { label in
+                combined = combined + AttributedText(phrase, registry: registry) { label in
                     label.foregroundColor = matched.customColor ?? keywordColor
                     label.font = matched.customFont ?? font
                     
                     let isUnderlined = matched.customUnderline?.isOn ?? underlineConfig.isOn
                     if isUnderlined {
+                        let underlineColor = matched.customUnderline?.color ??
+                        matched.customColor ??
+                        underlineConfig.color ??
+                        keywordColor
+                        
                         label.underlineStyle = .init(
                             pattern: matched.customUnderline?.pattern ?? underlineConfig.pattern,
-                            color: matched.customUnderline?.color ?? underlineConfig.color ?? keywordColor
+                            color: underlineColor
                         )
                     }
                 }.onTap {
@@ -89,7 +92,7 @@ public struct TappableText: View {
                 i += keywordLength
             } else {
                 let word = words[i]
-                combined = combined + AttributedText(word) { label in
+                combined = combined + AttributedText(word, registry: registry) { label in
                     label.foregroundColor = textColor
                     label.font = font
                 }.onTap {
@@ -101,6 +104,12 @@ public struct TappableText: View {
         
         return combined
             .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(text)
+    }
+    
+    private func tokenize(_ input: String) -> [String] {
+        TokenizeService.tokenizeWord(input)
     }
     
     // MARK: - Modifiers
@@ -146,5 +155,25 @@ public struct TappableText: View {
         var copy = self
         copy.onPlainWordsTap = perform
         return copy
+    }
+}
+
+enum TokenizeService {
+    static func tokenizeWord(_ input: String) -> [String] {
+        let pattern = #"(\s+|\w+|[^\w\s])"#
+        let regex = try? NSRegularExpression(pattern: pattern)
+        let range = NSRange(input.startIndex..., in: input)
+        let matches = regex?.matches(in: input, range: range) ?? []
+        return matches.map { String(input[Range($0.range, in: input)!]) }
+    }
+    
+    static func tokenizeSentence(_ text: String) -> [String] {
+        let pattern = #"(\s+|\w+|[^\w\s])"#
+        let regex = try? NSRegularExpression(pattern: pattern)
+        let range = NSRange(text.startIndex..., in: text)
+        let matches = regex?.matches(in: text, range: range) ?? []
+        let words = matches.map { String(text[Range($0.range, in: text)!]) }
+        
+        return words
     }
 }

@@ -1,19 +1,41 @@
 import SwiftUI
 
 extension TappableText {
+    final class TapHandlerRegistry: ObservableObject {
+        private var handlers: [String: () -> Void] = [:]
+        
+        func register(_ handler: @escaping () -> Void) -> String {
+            let id = UUID().uuidString
+            handlers[id] = handler
+            return id
+        }
+        
+        func handle(_ id: String) {
+            handlers[id]?()
+        }
+
+        func unregisterAll() {
+            handlers.removeAll()
+        }
+    }
+}
+
+extension TappableText {
     
     /// A container for attributed string fragments that handles URL-based tap dispatching.
     struct AttributedText: View {
+        let registry: TapHandlerRegistry
         private var attributedString: AttributedString
         private var onTap: (() -> Void)?
         
-        /// Stores handlers centrally to survive view re-renders.
-        static var tapRegistry: [String: () -> Void] = [:]
-        static var nextId: Int = 0
-        
-        init(_ string: String = "", modifier: ((inout AttributedString) -> Void)? = nil) {
+        init(
+            _ string: String = "",
+            registry: TapHandlerRegistry,
+            modifier: ((inout AttributedString) -> Void)? = nil
+        ) {
             var attr = AttributedString(string)
             modifier?(&attr)
+            self.registry = registry
             self.attributedString = attr
         }
         
@@ -21,8 +43,7 @@ extension TappableText {
             Text(attributedString)
                 .environment(\.openURL, OpenURLAction { url in
                     if url.scheme == "tappable", let id = url.host {
-                        Self.tapRegistry[id]?()
-                        return .handled
+                        registry.handle(id)
                     }
                     return .systemAction
                 })
@@ -39,9 +60,7 @@ extension TappableText {
             var rhsString = rhs.attributedString
             
             if let action = rhs.onTap {
-                let id = "id_\(Self.nextId)"
-                Self.nextId += 1
-                Self.tapRegistry[id] = action
+                let id = lhs.registry.register(action)
                 rhsString.link = URL(string: "tappable://\(id)")
             }
             
