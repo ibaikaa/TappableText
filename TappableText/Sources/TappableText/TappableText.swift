@@ -1,12 +1,48 @@
 import SwiftUI
 
-/// A SwiftUI view that renders interactive text with customizable keyword highlighting.
+/// A highly customizable SwiftUI view for rendering interactive text with highlighted keywords.
 ///
-/// `TappableText` identifies specific phrases within a string and applies unique styling
-/// and tap actions to them, while keeping punctuation and formatting intact.
+/// `TappableText` parses a raw string and matches specific phrases (keywords) to apply unique styles
+/// and tap actions. It preserves punctuation and whitespace while providing a DSL-based approach
+/// to defining interactivity.
+///
+/// ### Overview
+/// Unlike a standard `Text` view with `AttributedString` links, `TappableText` offers:
+/// - **Granular Control**: Specific fonts, colors, and underline patterns per keyword.
+/// - **Global Styling**: Set default themes for all keywords at once.
+/// - **Memory Safety**: Automated cleanup of tap handlers to prevent leaks.
+/// - **Accessibility**: Automatic grouping of fragments for a seamless VoiceOver experience.
+///
+/// ### Usage
+///
+/// ```swift
+/// TappableText("Please accept our Terms and Privacy Policy.") {
+///     TappableText.Keyword("Terms") {
+///         print("Terms tapped")
+///     }
+///     .color(.orange)
+///     .underlined(true, pattern: .dash)
+///
+///     TappableText.Keyword("Privacy Policy") {
+///         print("Policy tapped")
+///     }
+///     .underlined(true, color: .green)
+/// }
+/// .keywordColor(.blue)
+/// .textFont(.system(size: 16))
+/// .onPlainWordsTap {
+///     print("Tapped on non-keyword text")
+/// }
+/// ```
+///
+/// > Important: `TappableText` uses an internal registry to manage closures.
+/// It automatically cleans up resources when the view disappears via `.onDisappear`.
+///
+/// > Note: Performance is optimized by tokenizing the sentence once during initialization.
 @MainActor
 public struct TappableText: View {
     
+    /// Coordinates tap events and closure storage.
     @StateObject private var registry = TapHandlerRegistry()
     
     private let text: String
@@ -20,10 +56,11 @@ public struct TappableText: View {
     
     private let computedWords: [String]
     
-    /// Initializes a new TappableText.
+    /// Creates a new interactive text view.
+    ///
     /// - Parameters:
-    ///   - text: The full string to display.
-    ///   - keywords: A result builder that returns an array of `Keyword` objects.
+    ///   - text: The full source string to be parsed.
+    ///   - keywords: A `@KeywordBuilder` closure returning an array of interactive phrases.
     public init(
         _ text: String,
         @KeywordBuilder keywords: () -> [Keyword]
@@ -31,10 +68,9 @@ public struct TappableText: View {
         self.text = text
         self.keywords = keywords()
         
+        // Memoized tokenization: performed only once during init to save CPU cycles in body.
         self.computedWords = TokenizeService.tokenizeSentence(text)
     }
-    
-    // MARK: - Internal Logic
     
     public var body: some View {
         renderText()
@@ -43,6 +79,7 @@ public struct TappableText: View {
             }
     }
     
+    /// Internal rendering engine that builds the final interactive view.
     func renderText() -> some View {
         let words = computedWords
         var combined = AttributedText(registry: registry) { $0.font = font }
@@ -52,6 +89,7 @@ public struct TappableText: View {
             var matchedKeyword: Keyword?
             var keywordLength = 0
             
+            // Greedily search for the longest matching keyword at current position
             for keyword in keywords {
                 let keywordTokens = tokenize(keyword.word)
                 if i + keywordTokens.count <= words.count {
@@ -77,9 +115,9 @@ public struct TappableText: View {
                     let isUnderlined = matched.customUnderline?.isOn ?? underlineConfig.isOn
                     if isUnderlined {
                         let underlineColor = matched.customUnderline?.color ??
-                        matched.customColor ??
-                        underlineConfig.color ??
-                        keywordColor
+                                           matched.customColor ??
+                                           underlineConfig.color ??
+                                           keywordColor
                         
                         label.underlineStyle = .init(
                             pattern: matched.customUnderline?.pattern ?? underlineConfig.pattern,
@@ -114,28 +152,33 @@ public struct TappableText: View {
     
     // MARK: - Modifiers
     
-    /// Sets the color for non-keyword text.
+    /// Overrides the color for all non-keyword text.
     public func textColor(_ color: Color) -> Self {
         var copy = self
         copy.textColor = color
         return copy
     }
     
-    /// Sets the default color for all keywords.
+    /// Sets a default color for all keywords. Individual keyword colors will override this.
     public func keywordColor(_ color: Color) -> Self {
         var copy = self
         copy.keywordColor = color
         return copy
     }
     
-    /// Sets the font for the entire text.
+    /// Sets the font for the entire text view. Individual keyword fonts will override this.
     public func textFont(_ font: Font) -> Self {
         var copy = self
         copy.font = font
         return copy
     }
     
-    /// Enables or disables underlining for keywords.
+    /// Configures the default underline style for all keywords.
+    ///
+    /// - Parameters:
+    ///   - isOn: Whether underlining is enabled.
+    ///   - color: The color of the underline. If nil, inherits the keyword's foreground color.
+    ///   - pattern: The pattern of the line (e.g., solid, dash, dot).
     public func keywordUnderline(
         _ isOn: Bool,
         color: Color? = nil,
@@ -150,7 +193,7 @@ public struct TappableText: View {
         return copy
     }
     
-    /// Sets a global action for taps on non-keyword parts of the text.
+    /// Provides an action to be executed when the user taps on any non-interactive part of the text.
     public func onPlainWordsTap(_ perform: @escaping () -> Void) -> Self {
         var copy = self
         copy.onPlainWordsTap = perform
