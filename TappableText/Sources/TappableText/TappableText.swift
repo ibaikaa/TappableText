@@ -1,43 +1,34 @@
-import UIKit
 import SwiftUI
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
+/// A SwiftUI view that renders interactive text with customizable keyword highlighting.
+///
+/// `TappableText` identifies specific phrases within a string and applies unique styling
+/// and tap actions to them, while keeping punctuation and formatting intact.
 @MainActor
 public struct TappableText: View {
     
-    /// Весь текст для отображения.
     private let text: String
-    
-    /// Цвет обычных слов.
     private var textColor: UIColor?
-    
-    /// Цвет кликабельных ключевых слов.
     private var keywordsColor: UIColor?
-    
-    /// Шрифт текста
     private var font: UIFont
-    
-    /// Конфиг подчеркивания текста снизу
     private var underlineConfig: KeywordUnderlineConfig
-    
-    /// Действие при нажатии на обычные слова.
     private var onPlainWordsTap: (() -> Void)?
-    
-    /// Массив ключевых слов и их действий.
     private let keywords: [Keyword]
     
-    /// Инициализатор компонента.
-    ///
+    /// Initializes a new TappableText.
     /// - Parameters:
-    ///   - text: Исходный текст, из которого будут выделяться ключевые слова.
-    ///   - keywords: @KeywordBuilder, возвращающий список `Keyword`
-    ///     — пар (слово, действие).
+    ///   - text: The full string to display.
+    ///   - keywords: A result builder that returns an array of `Keyword` objects.
     public init(
         _ text: String,
         @KeywordBuilder keywords: () -> [Keyword]
     ) {
         self.text = text
         self.keywords = keywords()
-
         self.textColor = nil
         self.keywordsColor = nil
         self.font = .systemFont(ofSize: 16)
@@ -45,7 +36,8 @@ public struct TappableText: View {
         self.onPlainWordsTap = nil
     }
     
-    // Улучшенный токенизатор: разделяет слова, пробелы и пунктуацию
+    // MARK: - Internal Logic
+    
     private var textWords: [String] {
         let pattern = #"(\s+|\w+|[^\w\s])"#
         let regex = try? NSRegularExpression(pattern: pattern)
@@ -54,9 +46,17 @@ public struct TappableText: View {
         return matches.map { String(text[Range($0.range, in: text)!]) }
     }
     
+    private func tokenize(_ input: String) -> [String] {
+        let pattern = #"(\s+|\w+|[^\w\s])"#
+        let regex = try? NSRegularExpression(pattern: pattern)
+        let range = NSRange(input.startIndex..., in: input)
+        let matches = regex?.matches(in: input, range: range) ?? []
+        return matches.map { String(input[Range($0.range, in: input)!]) }
+    }
+    
     public var body: some View {
         let words = textWords
-        var view = AttributedText("") { $0.font = font }
+        var combined = AttributedText("") { $0.font = font }
         var i = 0
         
         while i < words.count {
@@ -64,12 +64,10 @@ public struct TappableText: View {
             var keywordLength = 0
             
             for keyword in keywords {
-                // Разбиваем ключевую фразу на такие же токены, как и основной текст
                 let keywordTokens = tokenize(keyword.word)
                 if i + keywordTokens.count <= words.count {
                     let slice = Array(words[i..<(i + keywordTokens.count)])
                     
-                    // Сравниваем без учета регистра и лишних пробелов по краям
                     let normalizedSlice = slice.map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
                     let normalizedKeyword = keywordTokens.map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
                     
@@ -83,23 +81,20 @@ public struct TappableText: View {
             
             if let matched = matchedKeyword {
                 let phrase = words[i..<(i + keywordLength)].joined()
-                view = view + AttributedText(phrase) { label in
-                    label.foregroundColor = matched.customColor
-                    ?? keywordsColor
-                    ?? .label
-                    
+                combined = combined + AttributedText(phrase) { label in
+                    label.foregroundColor = matched.customColor ?? keywordsColor ?? .label
                     label.font = matched.customFont ?? font
                     
                     let isUnderlined = matched.customUnderline ?? underlineConfig.isOn
                     label.underlineStyle = isUnderlined ? .single : .none
-                    label.underlineColor = matched.customColor ?? underlineConfig.color
+                    label.underlineColor = matched.customColor ?? keywordsColor ?? underlineConfig.color
                 }.onTap {
                     matched.action()
                 }
                 i += keywordLength
             } else {
                 let word = words[i]
-                view = view + AttributedText(word) { label in
+                combined = combined + AttributedText(word) { label in
                     label.foregroundColor = textColor ?? .label
                     label.font = font
                 }.onTap {
@@ -108,47 +103,42 @@ public struct TappableText: View {
                 i += 1
             }
         }
-        return view
+        
+        return combined
+            .fixedSize(horizontal: false, vertical: true)
     }
     
-    // Вспомогательная функция для токенизации ключевых слов
-    private func tokenize(_ input: String) -> [String] {
-        let pattern = #"(\s+|\w+|[^\w\s])"#
-        let regex = try? NSRegularExpression(pattern: pattern)
-        let range = NSRange(input.startIndex..., in: input)
-        let matches = regex?.matches(in: input, range: range) ?? []
-        return matches.map { String(input[Range($0.range, in: input)!]) }
-    }
+    // MARK: - Modifiers
     
-    /// Метод для настройки цвета обычных слов.
+    /// Sets the color for non-keyword text.
     public func textColor(_ color: UIColor) -> Self {
         var copy = self
         copy.textColor = color
         return copy
     }
     
-    /// Метод для настройки цвета кликабельных ключевых слов.
+    /// Sets the default color for all keywords.
     public func keywordsColor(_ color: UIColor) -> Self {
         var copy = self
         copy.keywordsColor = color
         return copy
     }
     
-    /// Метод для настройки шрифта текста
+    /// Sets the font for the entire text.
     public func textFont(_ font: UIFont) -> Self {
         var copy = self
         copy.font = font
         return copy
     }
     
-    /// Метод для настройки подчеркивания ключевых слов
+    /// Enables or disables underlining for keywords.
     public func underlineKeywords(_ isOn: Bool) -> Self {
         var copy = self
-        copy.underlineConfig = .init(isOn: isOn, color: textColor ?? .label)
+        copy.underlineConfig = .init(isOn: isOn, color: keywordsColor ?? textColor ?? .label)
         return copy
     }
     
-    /// Метод для настройки действия при нажатии на обычные, не ключевые слова
+    /// Sets a global action for taps on non-keyword parts of the text.
     public func onPlainWordsTap(_ perform: @escaping () -> Void) -> Self {
         var copy = self
         copy.onPlainWordsTap = perform

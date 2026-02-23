@@ -1,11 +1,10 @@
 import UIKit
 
-extension TappableText {
-    @MainActor
+public extension TappableText {
+    /// A configuration for keyword underlining.
     struct KeywordUnderlineConfig {
         let isOn: Bool
         let color: UIColor
-        
-        static var `none` = KeywordUnderlineConfig(isOn: false, color: .clear)
+        static var none: KeywordUnderlineConfig { .init(isOn: false, color: .clear) }
     }
 }
