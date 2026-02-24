@@ -8,7 +8,7 @@ public extension TappableText {
         var customColor: Color?
         var customFont: Font?
         var customUnderline: KeywordUnderlineConfig?
-
+        
         /// Creates a keyword to match within the parent text.
         /// - Parameters:
         ///   - word: The exact phrase to match (case-insensitive).
@@ -52,8 +52,36 @@ public extension TappableText {
 public extension TappableText {
     @resultBuilder
     struct KeywordBuilder {
-        public static func buildBlock(_ components: Keyword...) -> [Keyword] {
-            components
+        public static func buildExpression(_ expression: Keyword) -> [Keyword] {
+            [expression]
+        }
+
+        public static func buildExpression(_ expression: [Keyword]) -> [Keyword] {
+            expression
+        }
+        
+        public static func buildArray(_ components: [[Keyword]]) -> [Keyword] {
+            components.flatMap { $0 }
+        }
+
+        public static func buildExpression(_ expression: [Keyword]...) -> [Keyword] {
+            expression.flatMap { $0 }
+        }
+
+        public static func buildBlock(_ components: [Keyword]...) -> [Keyword] {
+            components.flatMap { $0 }
+        }
+
+        public static func buildOptional(_ component: [Keyword]?) -> [Keyword] {
+            component ?? []
+        }
+
+        public static func buildEither(first component: [Keyword]) -> [Keyword] {
+            component
+        }
+
+        public static func buildEither(second component: [Keyword]) -> [Keyword] {
+            component
         }
     }
 }
