@@ -13,6 +13,9 @@ protocol ExampleScreen: View {
 }
 
 struct ExampleContainer<Content: View>: View {
+    
+    @Environment(\.colorScheme) private var colorScheme
+    
     let title: String
     let description: String
     let usageCode: String
@@ -49,7 +52,10 @@ struct ExampleContainer<Content: View>: View {
                 content(showToast)
                     .padding()
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.background.shadow(.drop(color: .black.opacity(0.08), radius: 8, y: 4)))
+                    .background(
+                        Color(colorScheme == .light ? .systemBackground : .systemGray6)
+                            .shadow(.drop(color: Color(.label).opacity(0.08), radius: 8, y: 4))
+                    )
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .padding(.horizontal)
 
